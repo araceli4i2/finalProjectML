@@ -1,13 +1,680 @@
-{% extends "base.html" %}
-{% block title %}EDSA 2023 · Inicio y alcance{% endblock %}
-{% block page_title %}Inicio y alcance{% endblock %}
-{% block content %}
-<main class="p-4 md:p-xl max-w-container mx-auto space-y-8">
-<header class="max-w-4xl"><p class="font-label-caps text-secondary tracking-wider mb-3">EDSA 2023 · ANALÍTICA DE PRIORIZACIÓN SANITARIA</p><h1 class="font-display-lg text-on-surface">Medir para priorizar, no diagnosticar.</h1><p class="font-body-lg text-on-surface-variant mt-4">Una lectura reproducible de fuentes EDSA para construir dos modelos offline: anemia en mujeres y cantidad de controles prenatales.</p></header>
-<section class="grid grid-cols-1 md:grid-cols-2 gap-5">
-<div class="bg-surface rounded-xl border border-secondary/30 p-6 shadow-sm"><span class="material-symbols-outlined text-secondary text-3xl">female</span><p class="text-xs font-label-caps text-secondary mt-4">M1 · CLASIFICACIÓN</p><h2 class="font-headline-md mt-1">Anemia en mujeres</h2><p class="text-on-surface-variant mt-2">Etiqueta binaria <strong>anemia_mujer</strong>. Baseline logístico frente a Random Forest y Gradient Boosting.</p><a href="{{ url_for('demo') }}" class="inline-flex items-center gap-2 mt-5 bg-secondary text-white px-4 py-2 rounded-lg text-sm"><span class="material-symbols-outlined text-[18px]">arrow_forward</span>Ver perfil M1</a></div>
-<div class="bg-surface rounded-xl border border-[#F97316]/30 p-6 shadow-sm"><span class="material-symbols-outlined text-[#F97316] text-3xl">pregnant_woman</span><p class="text-xs font-label-caps text-[#F97316] mt-4">M10 · REGRESIÓN DE CONTEO</p><h2 class="font-headline-md mt-1">Controles prenatales</h2><p class="text-on-surface-variant mt-2">Unidad embarazo/nacimiento. Regresión lineal como referencia y alternativas no lineales.</p><a href="{{ url_for('m10') }}" class="inline-flex items-center gap-2 mt-5 bg-[#F97316] text-white px-4 py-2 rounded-lg text-sm"><span class="material-symbols-outlined text-[18px]">arrow_forward</span>Ver perfil M10</a></div>
-</section>
-<section class="bg-surface rounded-xl border border-outline-variant p-6"><h2 class="font-headline-md">Cómo se relacionan las fuentes</h2><div class="grid md:grid-cols-3 gap-4 mt-5 text-sm"><div class="p-4 bg-secondary/5 border-l-4 border-secondary"><strong>M1</strong><p class="text-on-surface-variant mt-1">Mujer + Hogar + Vivienda + Peso/talla/hemo</p></div><div class="p-4 bg-[#F97316]/5 border-l-4 border-[#F97316]"><strong>M10</strong><p class="text-on-surface-variant mt-1">HistorialParidad + Mujer</p></div><div class="p-4 bg-red-50 border-l-4 border-red-500"><strong>Principio</strong><p class="text-on-surface-variant mt-1">Resultados para seguimiento y priorización, nunca diagnóstico clínico.</p></div></div></section>
-</main>
-{% endblock %}
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AprendizajeSupervisadoML | Dashboard de Predicción de Ingresos Operativos</title>
+  <meta name="description" content="Dashboard ejecutivo de Machine Learning supervisado para la predicción de ingresos operativos anuales de empresas bolivianas (EAIMCS - INE Bolivia).">
+
+  <!-- Estilos y Tipografías -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  
+  <!-- Plotly.js para Gráficos Interactivos -->
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+</head>
+<body>
+
+  <!-- =========================================================================
+       SIDEBAR IZQUIERDO FIJO
+       ========================================================================= -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <a href="#" class="brand">
+        <div class="brand-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>SupervisadoML</h1>
+          <span>EAIMCS · INE Bolivia</span>
+        </div>
+      </a>
+      <button class="sidebar-toggle-btn" id="sidebarToggle" title="Colapsar menú">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          <line x1="9" y1="3" x2="9" y2="21"></line>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Menú de Navegación de 8 Secciones -->
+    <ul class="sidebar-menu">
+      <li>
+        <button class="nav-item-btn active" data-section="inicio">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+          </svg>
+          <span class="nav-text">1. Inicio / Resumen</span>
+        </button>
+      </li>
+      <li>
+        <button class="nav-item-btn" data-section="diccionario">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+          </svg>
+          <span class="nav-text">2. Diccionario Datos</span>
+        </button>
+      </li>
+      <li>
+        <button class="nav-item-btn" data-section="eda">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="20" x2="18" y2="10"></line>
+            <line x1="12" y1="20" x2="12" y2="4"></line>
+            <line x1="6" y1="20" x2="6" y2="14"></line>
+          </svg>
+          <span class="nav-text">3. Análisis EDA</span>
+        </button>
+      </li>
+      <li>
+        <button class="nav-item-btn" data-section="preprocesamiento">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16 18 22 12 16 6"></polyline>
+            <polyline points="8 6 2 12 8 18"></polyline>
+          </svg>
+          <span class="nav-text">4. Preprocesamiento</span>
+        </button>
+      </li>
+      <li>
+        <button class="nav-item-btn" data-section="modelado">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+          <span class="nav-text">5. Modelado & Métricas</span>
+        </button>
+      </li>
+      <li>
+        <button class="nav-item-btn" data-section="prediccion">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+          </svg>
+          <span class="nav-text">6. Predicción Interactiva</span>
+        </button>
+      </li>
+      <li>
+        <button class="nav-item-btn" data-section="mlops">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          <span class="nav-text">7. MLOps / Monitoreo</span>
+        </button>
+      </li>
+      <li>
+        <button class="nav-item-btn" data-section="acerca">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+          <span class="nav-text">8. Acerca del Proyecto</span>
+        </button>
+      </li>
+    </ul>
+
+    <!-- Footer Sidebar con Versión de Modelo -->
+    <div class="sidebar-footer">
+      <div class="model-badge-card">
+        <span class="badge-title">Modelo en Producción</span>
+        <span class="badge-val" id="sidebarModelBadge">{{ active_version }}</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- =========================================================================
+       CONTENEDOR PRINCIPAL
+       ========================================================================= -->
+  <div class="main-wrapper">
+    <!-- Barra Superior -->
+    <header class="top-navbar">
+      <div class="page-title-group">
+        <h2 id="currentSectionTitle">Resumen Ejecutivo</h2>
+        <p id="currentSectionSubtitle">Indicadores macroeconómicos y cobertura de empresas bolivianas</p>
+      </div>
+      <div class="top-controls">
+        <div class="status-pill">
+          <span>EAIMCS 2017-2018 Activo</span>
+        </div>
+        <button class="theme-toggle-btn" id="themeToggleBtn" title="Cambiar a Modo Oscuro/Claro">
+          <svg id="themeIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Área de Paneles -->
+    <main class="content-container">
+
+      <!-- =====================================================================
+           SECCIÓN 1: INICIO / RESUMEN EJECUTIVO
+           ===================================================================== -->
+      <section class="section-panel active" id="panel-inicio">
+        <div class="kpi-grid">
+          <div class="kpi-card accent-emerald">
+            <span class="kpi-label">Total Empresas Encuestadas</span>
+            <div class="kpi-value" id="kpiTotalEmpresas">3,153</div>
+            <div class="kpi-subtext">Directorio FUNDEMPRESA + Cuentas Nacionales</div>
+          </div>
+          <div class="kpi-card accent-indigo">
+            <span class="kpi-label">Ingreso Operativo Mediano</span>
+            <div class="kpi-value" id="kpiIngresoMediano">Bs 15.83 M</div>
+            <div class="kpi-subtext">50% empresas declaran ingresos superiores</div>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Ingreso Operativo Promedio</span>
+            <div class="kpi-value" id="kpiIngresoPromedio">Bs 56.89 M</div>
+            <div class="kpi-subtext">Sesgado por grandes empresas (Cola Pareto)</div>
+          </div>
+          <div class="kpi-card accent-amber">
+            <span class="kpi-label">Cobertura Territorial</span>
+            <div class="kpi-value" id="kpiDeptos">9 Deptos</div>
+            <div class="kpi-subtext">Santa Cruz lidera con 45.3% del total</div>
+          </div>
+        </div>
+
+        <div class="grid-2-col">
+          <div class="card">
+            <div class="card-title">Propósito del Proyecto y Caso de Uso</div>
+            <div class="card-subtitle">Modelo de valor de referencia para consistencia estadística</div>
+            <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1rem;">
+              Este sistema implementa un modelo de Machine Learning supervisado (regresión) entrenado con los microdatos de la 
+              <strong>EAIMCS 2017-2018 (INE Bolivia)</strong> para estimar el <strong>Ingreso Operativo Anual</strong> que una empresa boliviana 
+              debería generar a partir de sus variables internas de estructura productiva (personal, sueldos, energía, activos fijos e insumos).
+            </p>
+            <div class="chart-rationale-box">
+              <strong>Impacto Contable y Metodológico:</strong> Sirve como herramienta de contraste y detección de discrepancias para identificar reportes subvaluados, inconsistentes o atípicos antes de consolidar cuentas del sector empresarial.
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Distribución Rápida de la Muestra</div>
+            <div class="card-subtitle">Departamentos y Sectores Clave</div>
+            <div style="display: flex; flex-direction: column; gap: 0.75rem; font-size: 0.88rem;">
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 0.4rem;">
+                <span>Concentración Eje Central (SCZ + LPZ + CBA)</span>
+                <strong>86.0% (2,707 empresas)</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 0.4rem;">
+                <span>Comercio Mayorista y Minorista</span>
+                <strong>39.4% (1,243 empresas)</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 0.4rem;">
+                <span>Industria Manufacturera</span>
+                <strong>15.5% (489 empresas)</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 0.4rem;">
+                <span>Empresas con Detalle de Insumos (Secc. 10)</span>
+                <strong>51.2% (1,614 empresas)</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           SECCIÓN 2: DICCIONARIO DE DATOS
+           ===================================================================== -->
+      <section class="section-panel" id="panel-diccionario">
+        <div class="card">
+          <div class="card-title">
+            <span>Catálogo Oficial de Variables del Proyecto</span>
+            <span style="font-size: 0.8rem; font-weight: 500; color: var(--text-muted);">Basado en docs/informe/02_diccionario_datos_EAIMCS.md</span>
+          </div>
+          <div class="card-subtitle">Explora los campos presentes en los archivos MOD_ANUAL_S01-07_12_general_i y MOD_ANUAL_S10_materiales_i</div>
+
+          <div class="table-toolbar">
+            <div class="search-input-wrap">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input type="text" id="dictSearchInput" placeholder="Buscar variable, sección o descripción...">
+            </div>
+            <select class="filter-select" id="dictSectionFilter">
+              <option value="">Todas las secciones</option>
+              <option value="Carátula">Carátula</option>
+              <option value="Sección 1">Sección 1 (Personal y Remuneraciones)</option>
+              <option value="Sección 2">Sección 2 (Energía y Combustibles)</option>
+              <option value="Sección 5">Sección 5 (Ingresos Operativos - Target)</option>
+              <option value="Sección 6">Sección 6 (Inventarios)</option>
+              <option value="Sección 7">Sección 7 (Activos Fijos)</option>
+              <option value="Sección 12">Sección 12 (Almacenamiento)</option>
+              <option value="Sección 10">Sección 10 (Materias Primas / Insumos)</option>
+            </select>
+          </div>
+
+          <div class="custom-table-container">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>Variable</th>
+                  <th>Sección</th>
+                  <th>Descripción Oficial</th>
+                  <th>Tipo de Variable</th>
+                  <th>Valores / Estadísticas</th>
+                </tr>
+              </thead>
+              <tbody id="dictionaryTableBody">
+                <tr><td colspan="5" style="text-align: center; padding: 2rem;">Cargando catálogo de variables...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           SECCIÓN 3: ANÁLISIS EXPLORATORIO (EDA)
+           ===================================================================== -->
+      <section class="section-panel" id="panel-eda">
+        <div class="card" style="margin-bottom: 2rem;">
+          <div class="card-title">
+            <span>Distribución de Ingresos Operativos (S05_04)</span>
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="status-pill" id="btnScaleToggle" style="cursor: pointer; background: var(--primary-light); color: var(--primary);">
+                Alternar a Escala Logarítmica log(1+x)
+              </button>
+            </div>
+          </div>
+          <div class="card-subtitle">Análisis de Asimetría y Justificación de la Transformación Logarítmica</div>
+          <div id="chartDistribution" style="height: 380px; width: 100%;"></div>
+          <div class="chart-rationale-box">
+            <strong>¿Qué representa y por qué este gráfico?</strong> El histograma y KDE evidencian que los ingresos de las empresas tienen una distribución extremadamente sesgada a la derecha en Bolivianos naturales. La aplicación de la transformación logarítmica estabiliza la varianza y convierte la cola pesada en una distribución acampanada adecuada para optimización por mínimos cuadrados y boosting.
+          </div>
+        </div>
+
+        <div class="grid-2-col">
+          <div class="card">
+            <div class="card-title">Ingresos Operativos por Departamento</div>
+            <div class="card-subtitle">Boxplots comparativos en escala logarítmica (Bs)</div>
+            <div id="chartBoxDeptos" style="height: 380px;"></div>
+            <div class="chart-rationale-box">
+              <strong>¿Por qué Boxplot?</strong> Muestra simultáneamente la mediana, la dispersión intercuartil (IQR) y los valores atípicos de cada departamento. Santa Cruz presenta la mediana más alta, seguido de Cochabamba y La Paz.
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Ingresos por Macrosector Económico</div>
+            <div class="card-subtitle">Dispersión por actividad CAEB</div>
+            <div id="chartBoxSectors" style="height: 380px;"></div>
+            <div class="chart-rationale-box">
+              <strong>¿Por qué Boxplot Sectorial?</strong> Demuestra la heterogeneidad de escalas entre sectores: Industria y Comercio concentran medianas más elevadas que Servicios Administrativos o Alojamiento.
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2-col">
+          <div class="card">
+            <div class="card-title">Matriz de Correlación de Predictores</div>
+            <div class="card-subtitle">Heatmap de correlación lineal en escala logarítmica</div>
+            <div id="chartCorrelation" style="height: 400px;"></div>
+            <div class="chart-rationale-box">
+              <strong>¿Por qué Heatmap de Correlación?</strong> Identifica qué factores productivos impulsan los ingresos. Sueldos básicos (0.58), personal ocupado (0.56) y activos fijos (0.47) muestran la asociación más sólida.
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Detección Visual de Outliers y Ratios</div>
+            <div class="card-subtitle">Sueldos vs. Ingresos y auditoría de centinelas 99999</div>
+            <div id="chartOutliers" style="height: 400px;"></div>
+            <div class="chart-rationale-box">
+              <strong>¿Por qué Scatter con resaltado?</strong> El gráfico de dispersión identifica empresas con proporciones anómalas (ingresos exorbitantes con masa salarial reducida o viceversa) que ameritan revisión.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           SECCIÓN 4: PREPROCESAMIENTO Y PIPELINE
+           ===================================================================== -->
+      <section class="section-panel" id="panel-preprocesamiento">
+        <div class="card">
+          <div class="card-title">Pipeline de Ingeniería de Datos y Transformaciones</div>
+          <div class="card-subtitle">Tratamiento reproducible desde datos crudos hasta la matriz de entrenamiento</div>
+
+          <div class="stepper-list" id="pipelineStepper">
+            <!-- Renderizado dinámico vía app.js -->
+          </div>
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           SECCIÓN 5: MODELADO Y RESULTADOS
+           ===================================================================== -->
+      <section class="section-panel" id="panel-modelado">
+        <div class="card" style="margin-bottom: 2rem;">
+          <div class="card-title">Tabla Comparativa de Modelos de Regresión</div>
+          <div class="card-subtitle">Evaluación en conjunto de prueba (Test Set 20% - 631 empresas) y 5-Fold Cross Validation</div>
+
+          <div class="custom-table-container">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>Algoritmo</th>
+                  <th>CV R² (Log)</th>
+                  <th>Test R² (Log)</th>
+                  <th>Test R² (Escala Bs)</th>
+                  <th>MAE (Bs)</th>
+                  <th>MedAPE (% Error Mediano)</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody id="modelsTableBody">
+                <tr><td colspan="7" style="text-align:center; padding: 1.5rem;">Cargando métricas de modelos...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="grid-2-col">
+          <div class="card">
+            <div class="card-title">Valores Reales vs. Predichos (Test Set)</div>
+            <div class="card-subtitle">Línea de 45° de predicción perfecta</div>
+            <div id="chartRealVsPred" style="height: 380px;"></div>
+            <div class="chart-rationale-box">
+              <strong>Diagnóstico:</strong> Una nube de puntos alineada diagonalmente con la recta y = x demuestra buena calibración tanto en empresas medianas como en grandes conglomerados.
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Análisis de Residuos (Homocedasticidad)</div>
+            <div class="card-subtitle">Residuos (Real - Predicho) vs. Valor Estimado</div>
+            <div id="chartResiduals" style="height: 380px;"></div>
+            <div class="chart-rationale-box">
+              <strong>Diagnóstico:</strong> La distribución simétrica de los residuos alrededor del eje cero en escala logarítmica valida que no existen sesgos estructurales de sobre o subestimación.
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Importancia de Variables (Feature Importance)</div>
+          <div class="card-subtitle">Factores determinantes según el ensamble Random Forest de producción</div>
+          <div id="chartFeatureImportance" style="height: 360px;"></div>
+          <div class="chart-rationale-box">
+            <strong>Hallazgo Económico:</strong> La masa salarial (sueldos y remuneraciones) y los activos fijos representan más del 65% de la capacidad explicativa del modelo, confirmando la teoría de la función de producción.
+          </div>
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           SECCIÓN 6: PREDICCIÓN INTERACTIVA
+           ===================================================================== -->
+      <section class="section-panel" id="panel-prediccion">
+        <div class="predict-layout">
+          <!-- Formulario de Entrada -->
+          <div class="card">
+            <div class="card-title">Simulador de Ingresos Operativos</div>
+            <div class="card-subtitle">Ingresa las variables de estructura productiva de la empresa</div>
+
+            <form id="predictionForm">
+              <div class="form-grid">
+                <div class="form-group">
+                  <label class="form-label" for="predDepto">Departamento</label>
+                  <select class="form-control" id="predDepto">
+                    <option value="SANTA CRUZ" selected>Santa Cruz</option>
+                    <option value="LA PAZ">La Paz</option>
+                    <option value="COCHABAMBA">Cochabamba</option>
+                    <option value="TARIJA">Tarija</option>
+                    <option value="ORURO">Oruro</option>
+                    <option value="CHUQUISACA">Chuquisaca</option>
+                    <option value="POTOSI">Potosí</option>
+                    <option value="BENI">Beni</option>
+                    <option value="PANDO">Pando</option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label" for="predSector">Macrosector Económico (CAEB)</label>
+                  <select class="form-control" id="predSector">
+                    <option value="Industria Manufacturera" selected>Industria Manufacturera</option>
+                    <option value="Comercio Mayorista y Minorista">Comercio Mayorista y Minorista</option>
+                    <option value="Construcción">Construcción</option>
+                    <option value="Transporte y Almacenamiento">Transporte y Almacenamiento</option>
+                    <option value="Alojamiento y Servicios de Comida">Alojamiento y Comida</option>
+                    <option value="Servicios Profesionales y Técnicos">Servicios Profesionales</option>
+                    <option value="Información y Comunicaciones">Información y Comunicaciones</option>
+                    <option value="Salud y Asistencia Social">Salud y Asistencia Social</option>
+                    <option value="Educación">Educación</option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label" for="predPersonal">Personal Ocupado Total</label>
+                  <input type="number" class="form-control" id="predPersonal" value="35" min="1" max="5000">
+                  <span class="form-hint">Personas ocupadas permanentes y temporales</span>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label" for="predSueldos">Sueldos y Salarios Básicos (Bs)</label>
+                  <input type="number" class="form-control" id="predSueldos" value="1800000" min="0" step="10000">
+                  <span class="form-hint">Gasto anual declarado en sueldos básicos</span>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label" for="predRemuneraciones">Otras Remuneraciones (Bs)</label>
+                  <input type="number" class="form-control" id="predRemuneraciones" value="750000" min="0" step="10000">
+                  <span class="form-hint">Aguinaldos, aportes salud, AFPs y bonos</span>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label" for="predEnergia">Energía y Combustibles (Bs)</label>
+                  <input type="number" class="form-control" id="predEnergia" value="220000" min="0" step="5000">
+                  <span class="form-hint">Electricidad, agua, gas y diésel</span>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label" for="predActivos">Valor Activos Fijos Final (Bs)</label>
+                  <input type="number" class="form-control" id="predActivos" value="8500000" min="0" step="50000">
+                  <span class="form-hint">Maquinaria, edificaciones, transporte</span>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label" for="predInventarios">Inventarios Finales (Bs)</label>
+                  <input type="number" class="form-control" id="predInventarios" value="1500000" min="0" step="10000">
+                  <span class="form-hint">Productos terminados y materias primas</span>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label" for="predInsumosCompras">Compras de Insumos (Bs)</label>
+                  <input type="number" class="form-control" id="predInsumosCompras" value="4500000" min="0" step="50000">
+                  <span class="form-hint">Sección 10: Compras de materias primas</span>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label" for="predInsumosUtil">Utilización de Insumos (Bs)</label>
+                  <input type="number" class="form-control" id="predInsumosUtil" value="4200000" min="0" step="50000">
+                  <span class="form-hint">Insumos efectivamente consumidos</span>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label" for="predNInsumos">N° Insumos Distintos</label>
+                  <input type="number" class="form-control" id="predNInsumos" value="4" min="0" max="100">
+                  <span class="form-hint">Variedad de materias primas declaradas</span>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label" for="predCapacidadMP">Capacidad Almacén MP</label>
+                  <input type="number" class="form-control" id="predCapacidadMP" value="0" min="0">
+                  <span class="form-hint">Capacidad máxima almacenamiento materia prima</span>
+                </div>
+              </div>
+
+              <button type="submit" class="btn-predict">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                </svg>
+                Calcular Ingreso Operativo Estimado
+              </button>
+            </form>
+          </div>
+
+          <!-- Tarjeta de Resultados -->
+          <div class="card predict-result-card" id="predictionResultCard">
+            <div style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 600;">
+              Ingreso Operativo Proyectado
+            </div>
+            <div class="prediction-amount" id="resultPredictionAmount">Bs --</div>
+            <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
+              Intervalo de Confianza (90%):
+              <strong id="resultInterval">Bs --</strong>
+            </div>
+            <div class="size-category-badge indigo" id="resultSizeCategory">Esperando Simulación</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 1.5rem; max-width: 280px; text-align: center;">
+              Basado en el ensamble Random Forest optimizado para la estructura productiva formal de Bolivia.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           SECCIÓN 7: MLOPS Y MONITOREO
+           ===================================================================== -->
+      <section class="section-panel" id="panel-mlops">
+        <div class="grid-2-col" style="margin-bottom: 2rem;">
+          <div class="card">
+            <div class="card-title">Gobernanza del Modelo y Trazabilidad</div>
+            <div class="card-subtitle">Detalles de despliegue y versionamiento</div>
+            <div style="display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.88rem;">
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3rem;">
+                <span>Versión Activa</span>
+                <strong class="font-mono" id="mlopsActiveVersion">v1.0.0</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3rem;">
+                <span>Algoritmo Serializado</span>
+                <strong id="mlopsModelType">RandomForestRegressor</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3rem;">
+                <span>Pipeline de Preprocesamiento</span>
+                <strong>ColumnTransformer + StandardScaler + OHE</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3rem;">
+                <span>Fecha de Reentrenamiento</span>
+                <span id="mlopsLastUpdated">2026-09-21</span>
+              </div>
+              <div style="display: flex; justify-content: space-between;">
+                <span>Integración MLflow Tracking</span>
+                <span class="status-pill-subtle active">Habilitado (Stubs listos)</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">
+              <span>Auditoría de Data Drift (Deriva de Datos)</span>
+              <button class="status-pill" id="btnTestDrift" style="cursor: pointer; background: var(--bg-surface-elevated); color: var(--text-primary); border: 1px solid var(--border-color);">
+                Simular Prueba KS
+              </button>
+            </div>
+            <div class="card-subtitle">Pruebas Kolmogorov-Smirnov y Wasserstein frente a distribución base</div>
+            <div id="driftStatusList" style="display: flex; flex-direction: column; gap: 0.75rem;">
+              <!-- Renderizado dinámico vía app.js -->
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Registro Histórico de Versiones del Modelo</div>
+          <div class="card-subtitle">Historial de experimentos y artefactos registrados en ml/registry.json</div>
+          <div class="custom-table-container">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>Versión</th>
+                  <th>Algoritmo</th>
+                  <th>Fecha de Entrenamiento</th>
+                  <th>Registros</th>
+                  <th>R² (Escala Bs)</th>
+                  <th>MedAPE (%)</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody id="mlopsHistoryTableBody">
+                <tr><td colspan="7" style="text-align: center; padding: 1rem;">Cargando registro histórico...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           SECCIÓN 8: ACERCA DEL PROYECTO
+           ===================================================================== -->
+      <section class="section-panel" id="panel-acerca">
+        <div class="grid-2-col" style="margin-bottom: 2rem;">
+          <div class="card">
+            <div class="card-title">Marco Lógico del Proyecto</div>
+            <div class="card-subtitle">Resumen ejecutivo basado en marco_logico_ingresos_operativos.md</div>
+            <div style="display: flex; flex-direction: column; gap: 1rem; font-size: 0.88rem; color: var(--text-secondary);">
+              <div>
+                <strong style="color: var(--text-primary);">Fin / Impacto:</strong>
+                <p>Construir estadísticas económicas sectoriales con ingresos declarados contrastados con un valor esperado técnico para auditoría tributaria y consistencia de cuentas nacionales.</p>
+              </div>
+              <div>
+                <strong style="color: var(--text-primary);">Propósito / Objetivo:</strong>
+                <p>Los ingresos operativos anuales declarados cuentan con un valor de referencia derivado de sus factores de producción con R² ≥ 0.70 y error porcentual mediano ≤ 25%.</p>
+              </div>
+              <div>
+                <strong style="color: var(--text-primary);">Componentes del Proyecto:</strong>
+                <ul style="margin-left: 1.25rem; margin-top: 0.25rem; display: flex; flex-direction: column; gap: 0.2rem;">
+                  <li>C1: Dataset limpio e integrado a nivel empresa.</li>
+                  <li>C2: Análisis exploratorio y diagnóstico de distribuciones.</li>
+                  <li>C3: Modelos entrenados y validados (Ridge, Random Forest, HistGradientBoosting).</li>
+                  <li>C4: API REST del modelo para inferencia en tiempo real.</li>
+                  <li>C5: Dashboard web interactivo con MLOps y monitoreo.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Ficha Técnica del Dataset EAIMCS</div>
+            <div class="card-subtitle">Instituto Nacional de Estadística (INE Bolivia)</div>
+            <div style="display: flex; flex-direction: column; gap: 0.75rem; font-size: 0.88rem;">
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3rem;">
+                <span>Catálogo ANDA (INE)</span>
+                <strong class="font-mono">BOL-INE-EAIMCS-2017-2018</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3rem;">
+                <span>Período de Referencia</span>
+                <strong>Ejercicio Contable 2017 - 2018</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3rem;">
+                <span>Universo Analizado</span>
+                <strong>Empresas Medianas y Grandes (10,044 empresas)</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3rem;">
+                <span>Cobertura Territorial</span>
+                <strong>Nacional (9 departamentos)</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3rem;">
+                <span>Confidencialidad</span>
+                <strong>Decreto Ley 1405 (Datos anonimizados)</strong>
+              </div>
+            </div>
+
+            <div class="chart-rationale-box" style="margin-top: 1.5rem;">
+              <strong>Limitaciones Metodológicas:</strong> No incluye microempresas ni pequeñas empresas (MIPYMES). La muestra es de carácter dirigido (sin factor de expansión probabilístico) y de corte transversal (no es serie de tiempo).
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Script Principal de la Aplicación -->
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
