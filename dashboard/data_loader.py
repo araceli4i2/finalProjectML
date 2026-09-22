@@ -106,19 +106,20 @@ class DashboardDataLoader:
         return entries
 
     def get_distribution_data(self) -> Dict[str, Any]:
-        """Prepara datos para el histograma interactivo de ingresos operativos."""
+        """Prepara datos completos para el histograma interactivo de ingresos operativos."""
         y_raw = self.df["target"].values
         y_log = self.df["target_log"].values
         return {
-            "raw_values": [float(v) for v in y_raw[:1200]],
-            "log_values": [float(v) for v in y_log[:1200]],
+            "raw_values": [float(v) for v in y_raw],
+            "log_values": [float(v) for v in y_log],
             "median_bs": float(np.median(y_raw)),
             "mean_bs": float(np.mean(y_raw)),
+            "total_count": len(y_raw),
             "skew_note": "Distribución fuertemente asimétrica a la derecha (Pareto/Log-normal típica de ingresos)."
         }
 
     def get_boxplot_depto_data(self) -> List[Dict[str, Any]]:
-        """Datos de ingresos agrupados por los 9 departamentos."""
+        """Datos de ingresos agrupados por los 9 departamentos sin truncamiento muestral."""
         result = []
         for depto, group in self.df.groupby("depto"):
             vals = group["target"].values
@@ -129,17 +130,17 @@ class DashboardDataLoader:
                 "median_bs": float(np.median(vals)),
                 "q25_bs": float(np.percentile(vals, 25)),
                 "q75_bs": float(np.percentile(vals, 75)),
-                "sample_bs": [float(v) for v in vals[:100]],
-                "sample_log": [float(v) for v in vals_log[:100]]
+                "sample_bs": [float(v) for v in vals],
+                "sample_log": [float(v) for v in vals_log]
             })
         result = sorted(result, key=lambda x: x["count"], reverse=True)
         return result
 
     def get_boxplot_sector_data(self) -> List[Dict[str, Any]]:
-        """Datos de ingresos agrupados por macrosector económico."""
+        """Datos de ingresos agrupados por todos los macrosectores económicos."""
         result = []
         for sector, group in self.df.groupby("sector_macro"):
-            if len(group) < 15:
+            if len(group) < 5:
                 continue
             vals = group["target"].values
             vals_log = group["target_log"].values
@@ -147,8 +148,10 @@ class DashboardDataLoader:
                 "sector": sector,
                 "count": len(vals),
                 "median_bs": float(np.median(vals)),
-                "sample_bs": [float(v) for v in vals[:80]],
-                "sample_log": [float(v) for v in vals_log[:80]]
+                "q25_bs": float(np.percentile(vals, 25)),
+                "q75_bs": float(np.percentile(vals, 75)),
+                "sample_bs": [float(v) for v in vals],
+                "sample_log": [float(v) for v in vals_log]
             })
         result = sorted(result, key=lambda x: x["median_bs"], reverse=True)
         return result
@@ -181,18 +184,25 @@ class DashboardDataLoader:
         }
 
     def get_outliers_data(self) -> Dict[str, Any]:
-        """Subconjunto de puntos con cálculo de discrepancias y outliers."""
+        """Subconjunto de puntos con cálculo de discrepancias bivariadas y ratios operativos."""
         sample = self.df[["ID", "depto", "sector_macro", "S01_05_A", "S01_03_C", "S07_09_E", "target"]].copy()
-        sample["ratio_ing_sueldo"] = (sample["target"] / (sample["S01_03_C"] + 1)).clip(upper=100)
+        
+        # Ratio Ingreso / Sueldo (evitando divisiones espurias por cero agregando constante proporcional)
+        sample["ratio_ing_sueldo"] = (sample["target"] / (sample["S01_03_C"] + 1000.0)).clip(upper=200)
 
-        q25 = sample["target"].quantile(0.25)
-        q75 = sample["target"].quantile(0.75)
-        iqr = q75 - q25
-        upper_bound = q75 + 1.5 * iqr
-        sample["is_outlier"] = sample["target"] > upper_bound
+        # Detección bivariada de anomalías mediante residuo logarítmico respecto a la relación esperada
+        log_y = np.log1p(sample["target"])
+        log_w = np.log1p(sample["S01_03_C"])
+        
+        # Regresión ortogonal / tendencia base simple
+        residuos = np.abs(log_y - (0.65 * log_w + 6.5))
+        q75_res = np.percentile(residuos, 75)
+        iqr_res = q75_res - np.percentile(residuos, 25)
+        umbral_outlier = q75_res + 1.5 * iqr_res
+        sample["is_outlier"] = residuos > umbral_outlier
 
         data_points = []
-        for _, r in sample.sample(n=min(350, len(sample)), random_state=42).iterrows():
+        for _, r in sample.sample(n=min(500, len(sample)), random_state=42).iterrows():
             data_points.append({
                 "id": int(r["ID"]),
                 "depto": str(r["depto"]),

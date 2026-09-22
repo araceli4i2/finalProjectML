@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 import joblib
 
-from sklearn.model_selection import train_test_split, KFold, cross_val_score
+from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
 from sklearn.linear_model import Ridge
 from sklearn.ensemble import RandomForestRegressor, HistGradientBoostingRegressor
 from sklearn.metrics import r2_score, mean_absolute_error, root_mean_squared_error, median_absolute_error
@@ -64,8 +64,10 @@ def train_and_evaluate(
     y_raw = df["target"].values
     y_log = np.log1p(y_raw)
 
+    # Estratificación en split inicial basada en cuantiles del target
+    y_quantiles = pd.qcut(y_log, q=5, labels=False, duplicates="drop")
     X_train, X_test, y_train_log, y_test_log, y_train_raw, y_test_raw = train_test_split(
-        X, y_log, y_raw, test_size=0.2, random_state=RANDOM_STATE_SEED
+        X, y_log, y_raw, test_size=0.2, random_state=RANDOM_STATE_SEED, stratify=y_quantiles
     )
 
     preprocessor = ColumnTransformer(
@@ -89,25 +91,39 @@ def train_and_evaluate(
 
     results: Dict[str, Any] = {}
     fitted_pipelines: Dict[str, Pipeline] = {}
-    cv = KFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE_SEED)
+    smearing_factors: Dict[str, float] = {}
 
-    logger.info("Iniciando validación cruzada (5 Folds) y ajuste de modelos...")
+    # Validación cruzada estratificada por cuantiles
+    train_quantiles = pd.qcut(y_train_log, q=5, labels=False, duplicates="drop")
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE_SEED)
+
+    logger.info("Iniciando validación cruzada estratificada (5 Folds) y ajuste de modelos...")
     for name, model in models.items():
         pipe = Pipeline([
             ("prep", preprocessor),
             ("reg", model)
         ])
 
-        # CV en escala logarítmica
-        cv_scores = cross_val_score(pipe, X_train, y_train_log, cv=cv, scoring="r2", n_jobs=1)
+        # CV en escala logarítmica con pliegues estratificados
+        cv_scores = cross_val_score(
+            pipe, X_train, y_train_log, 
+            cv=cv.split(X_train, train_quantiles), 
+            scoring="r2", n_jobs=1
+        )
 
         # Ajuste en train completo
         pipe.fit(X_train, y_train_log)
         fitted_pipelines[name] = pipe
 
-        # Evaluación en Test
+        # Cálculo del Factor de Retransformación de Duan (Smearing Factor)
+        train_pred_log = pipe.predict(X_train)
+        residuals_train = y_train_log - train_pred_log
+        smearing_factor = float(np.mean(np.exp(residuals_train)))
+        smearing_factors[name] = smearing_factor
+
+        # Evaluación en Test aplicando corrección de Duan
         y_pred_log = pipe.predict(X_test)
-        y_pred_raw = np.expm1(y_pred_log)
+        y_pred_raw = np.maximum(0.0, np.exp(y_pred_log) * smearing_factor - 1.0)
 
         # Métricas log y naturales (Bs)
         r2_log = float(r2_score(y_test_log, y_pred_log))
@@ -130,18 +146,19 @@ def train_and_evaluate(
             "mae_bs": mae_bs,
             "rmse_bs": rmse_bs,
             "medae_bs": medae_bs,
-            "medape_percent": medape
+            "medape_percent": medape,
+            "smearing_factor": smearing_factor
         }
 
         logger.info(
-            "[%s] CV R2: %.4f | Test R2 (Log): %.4f | Test R2 (Bs): %.4f | MedAPE: %.2f%%",
-            name, results[name]["cv_r2_mean"], r2_log, r2_bs, medape
+            "[%s] CV R2: %.4f | Test R2 (Log): %.4f | Test R2 (Bs): %.4f | MedAPE: %.2f%% | Duan Smearing: %.4f",
+            name, results[name]["cv_r2_mean"], r2_log, r2_bs, medape, smearing_factor
         )
 
-    # Selección del mejor modelo para producción (mayor R² en Bs)
-    best_name = "RandomForest" if results["RandomForest"]["r2_bs"] >= results["HistGradientBoosting"]["r2_bs"] else "HistGradientBoosting"
+    # Selección del mejor modelo para producción (mayor R² log y menor MedAPE equilibrado)
+    best_name = "RandomForest" if results["RandomForest"]["r2_log"] >= results["HistGradientBoosting"]["r2_log"] else "HistGradientBoosting"
     best_pipe = fitted_pipelines[best_name]
-    logger.info("Modelo seleccionado para producción: %s", best_name)
+    logger.info("Modelo seleccionado para producción: %s (Smearing Factor: %.4f)", best_name, smearing_factors[best_name])
 
     # Importancia de variables
     feature_importance_list = []
@@ -161,20 +178,21 @@ def train_and_evaluate(
     joblib.dump(best_pipe, model_artifact_path)
     logger.info("Artefacto serializado guardado en: %s", model_artifact_path)
 
-    # Guardar predicciones diagnósticas tabulares en formato CSV
-    y_test_pred_best = np.expm1(best_pipe.predict(X_test))
+    # Guardar predicciones diagnósticas tabulares en formato CSV (100% DE OBSERVACIONES DE TEST)
+    y_test_pred_log_best = best_pipe.predict(X_test)
+    y_test_pred_best = np.maximum(0.0, np.exp(y_test_pred_log_best) * smearing_factors[best_name] - 1.0)
     test_diagnostics_df = pd.DataFrame({
-        "real_bs": [float(v) for v in y_test_raw[:300]],
-        "pred_bs": [float(v) for v in y_test_pred_best[:300]],
-        "real_log": [float(v) for v in y_test_log[:300]],
-        "pred_log": [float(v) for v in best_pipe.predict(X_test)[:300]],
-        "residuals_log": [float(r) for r in (y_test_log[:300] - best_pipe.predict(X_test)[:300])]
+        "real_bs": [float(v) for v in y_test_raw],
+        "pred_bs": [float(v) for v in y_test_pred_best],
+        "real_log": [float(v) for v in y_test_log],
+        "pred_log": [float(v) for v in y_test_pred_log_best],
+        "residuals_log": [float(r) for r in (y_test_log - y_test_pred_log_best)]
     })
     test_diag_csv = artifacts_dir / "test_predictions.csv"
     test_diagnostics_df.to_csv(test_diag_csv, index=False)
-    logger.info("Predicciones de prueba guardadas en formato tabular CSV: %s", test_diag_csv)
+    logger.info("Predicciones de prueba completas (%d filas) guardadas en CSV: %s", len(test_diagnostics_df), test_diag_csv)
 
-    # Guardar estadísticas de referencia para Drift en models/reference_stats.json
+    # Guardar estadísticas de referencia no paramétricas para Drift en models/reference_stats.json
     reference_stats = {}
     for c in PREDICTOR_NUM_COLS:
         vals = df[c].values
@@ -184,8 +202,15 @@ def train_and_evaluate(
             "median": float(np.median(vals)),
             "q25": float(np.percentile(vals, 25)),
             "q75": float(np.percentile(vals, 75)),
+            "p01": float(np.percentile(vals, 1)),
+            "p05": float(np.percentile(vals, 5)),
+            "p10": float(np.percentile(vals, 10)),
+            "p90": float(np.percentile(vals, 90)),
+            "p95": float(np.percentile(vals, 95)),
+            "p99": float(np.percentile(vals, 99)),
             "min": float(np.min(vals)),
-            "max": float(np.max(vals))
+            "max": float(np.max(vals)),
+            "zero_fraction": float(np.mean(vals == 0))
         }
     with open(models_dir / "reference_stats.json", "w", encoding="utf-8") as f:
         json.dump(reference_stats, f, indent=2, ensure_ascii=False)
@@ -211,6 +236,7 @@ def train_and_evaluate(
         "dataset_rows": len(df),
         "metrics": results[best_name],
         "all_models_metrics": results,
+        "smearing_factor": smearing_factors[best_name],
         "status": "ACTIVE",
         "framework": "scikit-learn",
         "python_version": sys.version.split()[0]
@@ -220,6 +246,8 @@ def train_and_evaluate(
     registry_data = {
         "active_version": version_id,
         "last_updated": datetime.now().isoformat(),
+        "smearing_factor": smearing_factors[best_name],
+        "rmse_log": results[best_name]["rmse_log"],
         "versions": history
     }
     with open(registry_file, "w", encoding="utf-8") as f:

@@ -285,20 +285,21 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch('/api/eda/boxplot_sectors');
       const data = await res.json();
 
-      const traces = data.slice(0, 6).map(s => ({
+      const traces = data.map(s => ({
         y: s.sample_log,
         type: 'box',
-        name: s.sector.length > 18 ? s.sector.substring(0, 16) + '...' : s.sector,
+        name: s.sector.length > 20 ? s.sector.substring(0, 18) + '...' : s.sector,
         boxpoints: 'outliers',
         marker: { size: 4 }
       }));
 
       const layout = {
         ...state.plotlyLayoutBase,
-        title: 'Ingresos por Macrosector Económico',
+        title: 'Ingresos por Macrosector Económico (Muestra Completa)',
+        xaxis: { ...state.plotlyLayoutBase.xaxis, tickangle: -35 },
         yaxis: { ...state.plotlyLayoutBase.yaxis, title: 'log(1 + Ingreso Bs)' },
         showlegend: false,
-        margin: { l: 50, r: 20, t: 40, b: 80 }
+        margin: { l: 50, r: 20, t: 40, b: 100 }
       };
 
       Plotly.newPlot('chartBoxSectors', traces, layout, { responsive: true, displayModeBar: false });
@@ -349,6 +350,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const traceNormal = {
         x: normalPoints.map(p => Math.log1p(p.sueldos_bs)),
         y: normalPoints.map(p => Math.log1p(p.ingreso_bs)),
+        text: normalPoints.map(p => `ID: ${p.id}<br>Depto: ${p.depto}<br>Sector: ${p.sector}<br>Ratio: ${p.ratio}`),
+        hoverinfo: 'text+x+y',
         mode: 'markers',
         type: 'scatter',
         name: 'Regulares',
@@ -358,6 +361,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const traceOutlier = {
         x: outlierPoints.map(p => Math.log1p(p.sueldos_bs)),
         y: outlierPoints.map(p => Math.log1p(p.ingreso_bs)),
+        text: outlierPoints.map(p => `<b>ATÍPICO</b><br>ID: ${p.id}<br>Depto: ${p.depto}<br>Sector: ${p.sector}<br>Ratio: ${p.ratio}`),
+        hoverinfo: 'text+x+y',
         mode: 'markers',
         type: 'scatter',
         name: 'Atípicos (IQR)',
@@ -366,7 +371,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const layout = {
         ...state.plotlyLayoutBase,
-        title: 'Sueldos vs. Ingresos (Auditoría de Consistencia)',
+        title: 'Sueldos vs. Ingresos (Auditoría de Consistencia Bivariada)',
         xaxis: { ...state.plotlyLayoutBase.xaxis, title: 'log(1 + Sueldos Básicos Bs)' },
         yaxis: { ...state.plotlyLayoutBase.yaxis, title: 'log(1 + Ingreso Bs)' },
         margin: { l: 60, r: 20, t: 40, b: 60 }

@@ -319,13 +319,19 @@ def predict_income():
 
         input_df = pd.DataFrame(input_dict)
         pred_log = float(MODEL.predict(input_df)[0])
-        pred_bs = float(np.expm1(pred_log))
 
-        rmse_log = 0.529
+        # Extraer parámetros de calibración estadística del registro MLOps
+        smearing_factor = float(REGISTRY.get("smearing_factor", 1.0)) if REGISTRY else 1.0
+        rmse_log = float(REGISTRY.get("rmse_log", 0.529)) if REGISTRY else 0.529
+
+        # Inferencia con corrección de sesgo no paramétrico de Duan
+        pred_bs = float(np.maximum(0.0, np.exp(pred_log) * smearing_factor - 1.0))
+
+        # Intervalo de predicción al 90%
         lower_log = pred_log - 1.645 * rmse_log
         upper_log = pred_log + 1.645 * rmse_log
-        lower_bs = max(0.0, float(np.expm1(lower_log)))
-        upper_bs = float(np.expm1(upper_log))
+        lower_bs = float(np.maximum(0.0, np.exp(lower_log) * smearing_factor - 1.0))
+        upper_bs = float(np.maximum(0.0, np.exp(upper_log) * smearing_factor - 1.0))
 
         is_produccion = "Industria" in sector_macro or "Construcción" in sector_macro or "Minería" in sector_macro
         umbral_gran = 35000000.0 if is_produccion else 28000000.0
@@ -350,7 +356,8 @@ def predict_income():
             "interval_formatted": f"Bs {lower_bs:,.2f} – Bs {upper_bs:,.2f}",
             "categoria_tamano": categoria_tamano,
             "categoria_color": categoria_color,
-            "log_prediction": round(pred_log, 4)
+            "log_prediction": round(pred_log, 4),
+            "smearing_factor_applied": round(smearing_factor, 4)
         })
     except Exception as e:
         logger.error("Error al procesar la predicción: %s", e)

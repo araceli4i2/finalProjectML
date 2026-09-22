@@ -1,7 +1,73 @@
 {
-  "active_version": "v1.20260921.2117",
-  "last_updated": "2026-09-21T21:17:14.373452",
+  "active_version": "v1.20260921.2352",
+  "last_updated": "2026-09-21T23:52:31.083633",
+  "smearing_factor": 1.040138648072362,
+  "rmse_log": 0.5696841910067251,
   "versions": [
+    {
+      "version": "v1.20260921.2352",
+      "model_type": "RandomForest",
+      "timestamp": "2026-09-21T23:52:31.083633",
+      "dataset_rows": 3153,
+      "metrics": {
+        "cv_r2_mean": 0.7724324924737178,
+        "cv_r2_std": 0.018724807899812332,
+        "r2_log": 0.7868460636110407,
+        "mae_log": 0.4323121880348838,
+        "rmse_log": 0.5696841910067251,
+        "r2_bs": 0.7528877842643916,
+        "mae_bs": 22888317.314960964,
+        "rmse_bs": 71152640.63932535,
+        "medae_bs": 5351029.536275633,
+        "medape_percent": 36.20035614185486,
+        "smearing_factor": 1.040138648072362
+      },
+      "all_models_metrics": {
+        "Ridge": {
+          "cv_r2_mean": 0.5475867040562983,
+          "cv_r2_std": 0.027273043158310098,
+          "r2_log": 0.5718348633256343,
+          "mae_log": 0.6308967698006944,
+          "rmse_log": 0.8074081708433092,
+          "r2_bs": 0.5171230127593865,
+          "mae_bs": 34309195.58612889,
+          "rmse_bs": 99463140.83449808,
+          "medae_bs": 13018093.307216223,
+          "medape_percent": 74.06764783871067,
+          "smearing_factor": 1.5351707908409835
+        },
+        "RandomForest": {
+          "cv_r2_mean": 0.7724324924737178,
+          "cv_r2_std": 0.018724807899812332,
+          "r2_log": 0.7868460636110407,
+          "mae_log": 0.4323121880348838,
+          "rmse_log": 0.5696841910067251,
+          "r2_bs": 0.7528877842643916,
+          "mae_bs": 22888317.314960964,
+          "rmse_bs": 71152640.63932535,
+          "medae_bs": 5351029.536275633,
+          "medape_percent": 36.20035614185486,
+          "smearing_factor": 1.040138648072362
+        },
+        "HistGradientBoosting": {
+          "cv_r2_mean": 0.7699811245154045,
+          "cv_r2_std": 0.013715724965106238,
+          "r2_log": 0.7815326978083318,
+          "mae_log": 0.43661241138755197,
+          "rmse_log": 0.5767408483811518,
+          "r2_bs": 0.728897245827776,
+          "mae_bs": 23662733.020005193,
+          "rmse_bs": 74526526.41723004,
+          "medae_bs": 5689145.7031996995,
+          "medape_percent": 36.93569720916631,
+          "smearing_factor": 1.1067626962017418
+        }
+      },
+      "smearing_factor": 1.040138648072362,
+      "status": "ACTIVE",
+      "framework": "scikit-learn",
+      "python_version": "3.12.9"
+    },
     {
       "version": "v1.20260921.2117",
       "model_type": "RandomForest",
@@ -57,7 +123,7 @@
           "medape_percent": 31.126751957693756
         }
       },
-      "status": "ACTIVE",
+      "status": "ARCHIVED",
       "framework": "scikit-learn",
       "python_version": "3.13.13"
     },
