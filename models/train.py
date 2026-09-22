@@ -2,7 +2,8 @@
 Script de Entrenamiento y Validación de Modelos de Regresión.
 Proyecto: AprendizajeSupervisadoML (EAIMCS - INE Bolivia).
 
-Evalúa Ridge, Random Forest e HistGradientBoosting con 5-Fold Cross Validation.
+Evalúa Ridge, Random Forest y Boosting regularizado (LightGBM / XGBoost) con 5-Fold Cross Validation.
+Optimiza la función de pérdida robusta (Huber / MAE) para reducir el MedAPE y mitigar el impacto de atípicos financieros.
 Exporta el modelo de producción a dashboard/artifacts/ sin duplicaciones.
 """
 
@@ -23,6 +24,13 @@ from sklearn.metrics import r2_score, mean_absolute_error, root_mean_squared_err
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
+
+import lightgbm as lgb
+
+try:
+    import xgboost as xgb
+except ImportError:
+    xgb = None
 
 # Asegurar importación de preprocessing
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -83,10 +91,35 @@ def train_and_evaluate(
             n_estimators=120, max_depth=16, min_samples_split=4,
             random_state=RANDOM_STATE_SEED, n_jobs=1
         ),
-        "HistGradientBoosting": HistGradientBoostingRegressor(
-            max_iter=150, max_depth=6, learning_rate=0.08,
-            random_state=RANDOM_STATE_SEED
+        # LightGBM configurado con función de pérdida robusta (Huber), tasa baja y regularización L1/L2
+        "LightGBM": lgb.LGBMRegressor(
+            objective="huber",          # Pérdida de Huber: cuadrática en errores pequeños, lineal en atípicos
+            learning_rate=0.03,         # Tasa de aprendizaje baja (0.01 - 0.05) para convergencia estable
+            n_estimators=600,           # Estimadores suficientes para compensar la tasa baja sin sobreajustar
+            num_leaves=31,              # Complejidad de árbol equilibrada
+            max_depth=6,                # Profundidad máxima controlada para acotar varianza
+            reg_alpha=1.0,              # Regularización L1 (Lasso) para inducir esparcidad y mitigar sobreajuste
+            reg_lambda=5.0,             # Regularización L2 (Ridge) sobre las ponderaciones de hojas
+            subsample=0.8,              # Submuestreo estocástico de filas (bagging fraction)
+            colsample_bytree=0.8,       # Submuestreo estocástico de columnas por árbol
+            importance_type="gain",     # Importancia basada en ganancia de reducción de pérdida
+            random_state=RANDOM_STATE_SEED,
+            verbose=-1,
+            n_jobs=1
         )
+        # Nota: Si se prefiere XGBoost como alternativa directa de Boosting:
+        # "XGBoost": xgb.XGBRegressor(
+        #     objective="reg:pseudohubererror", # o "reg:absoluteerror" para optimización pura de MAE
+        #     learning_rate=0.03,
+        #     n_estimators=700,
+        #     max_depth=6,
+        #     reg_alpha=1.5,
+        #     reg_lambda=5.0,
+        #     subsample=0.8,
+        #     colsample_bytree=0.8,
+        #     random_state=RANDOM_STATE_SEED,
+        #     n_jobs=1
+        # )
     }
 
     results: Dict[str, Any] = {}
@@ -155,20 +188,29 @@ def train_and_evaluate(
             name, results[name]["cv_r2_mean"], r2_log, r2_bs, medape, smearing_factor
         )
 
-    # Selección del mejor modelo para producción (mayor R² log y menor MedAPE equilibrado)
-    best_name = "RandomForest" if results["RandomForest"]["r2_log"] >= results["HistGradientBoosting"]["r2_log"] else "HistGradientBoosting"
+    # Selección dinámica del mejor modelo para producción (mayor R² log y menor MedAPE entre ensambles)
+    ensemble_candidates = [m for m in models.keys() if m != "Ridge"]
+    best_name = max(
+        ensemble_candidates,
+        key=lambda m: (results[m]["r2_log"], -results[m]["medape_percent"])
+    )
     best_pipe = fitted_pipelines[best_name]
     logger.info("Modelo seleccionado para producción: %s (Smearing Factor: %.4f)", best_name, smearing_factors[best_name])
 
-    # Importancia de variables
+    # Importancia de variables dinámica para cualquier modelo con feature_importances_ o coef_
     feature_importance_list = []
-    if best_name == "RandomForest":
-        rf_reg = best_pipe.named_steps["reg"]
-        encoder = best_pipe.named_steps["prep"].named_transformers_["cat"]
-        cat_features = list(encoder.get_feature_names_out(cat_cols))
-        all_features = log_num_cols + cat_features
-        importances = rf_reg.feature_importances_
+    reg_step = best_pipe.named_steps["reg"]
+    encoder = best_pipe.named_steps["prep"].named_transformers_["cat"]
+    cat_features = list(encoder.get_feature_names_out(cat_cols))
+    all_features = log_num_cols + cat_features
 
+    if hasattr(reg_step, "feature_importances_"):
+        importances = reg_step.feature_importances_
+        fi_df = pd.DataFrame({"feature": all_features, "importance": importances})
+        fi_df = fi_df.sort_values(by="importance", ascending=False)
+        feature_importance_list = fi_df.head(15).to_dict(orient="records")
+    elif hasattr(reg_step, "coef_"):
+        importances = np.abs(reg_step.coef_)
         fi_df = pd.DataFrame({"feature": all_features, "importance": importances})
         fi_df = fi_df.sort_values(by="importance", ascending=False)
         feature_importance_list = fi_df.head(15).to_dict(orient="records")
@@ -229,6 +271,12 @@ def train_and_evaluate(
     for h in history:
         h["status"] = "ARCHIVED"
 
+    framework = (
+        "lightgbm" if "LightGBM" in best_name
+        else "xgboost" if "XGB" in best_name
+        else "scikit-learn"
+    )
+
     version_entry = {
         "version": version_id,
         "model_type": best_name,
@@ -238,7 +286,7 @@ def train_and_evaluate(
         "all_models_metrics": results,
         "smearing_factor": smearing_factors[best_name],
         "status": "ACTIVE",
-        "framework": "scikit-learn",
+        "framework": framework,
         "python_version": sys.version.split()[0]
     }
     history.insert(0, version_entry)
