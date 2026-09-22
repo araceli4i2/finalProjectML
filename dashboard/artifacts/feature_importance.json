@@ -1,0 +1,62 @@
+[
+  {
+    "feature": "log_S01_14",
+    "importance": 0.3171333585640851
+  },
+  {
+    "feature": "log_S01_03_C",
+    "importance": 0.2569814291037107
+  },
+  {
+    "feature": "log_S06_06_B",
+    "importance": 0.09850022023162762
+  },
+  {
+    "feature": "log_total_valor_uti",
+    "importance": 0.06374277126329982
+  },
+  {
+    "feature": "sector_macro_Comercio Mayorista y Minorista",
+    "importance": 0.05409730988835698
+  },
+  {
+    "feature": "log_S07_09_E",
+    "importance": 0.05380718921173867
+  },
+  {
+    "feature": "log_S02_09",
+    "importance": 0.04985243782175253
+  },
+  {
+    "feature": "log_S01_05_A",
+    "importance": 0.03858883032867445
+  },
+  {
+    "feature": "log_total_valor_co",
+    "importance": 0.03654823417467646
+  },
+  {
+    "feature": "log_S12_01_B",
+    "importance": 0.003352259440728224
+  },
+  {
+    "feature": "log_S12_02_B",
+    "importance": 0.003313942904432539
+  },
+  {
+    "feature": "depto_LA PAZ",
+    "importance": 0.003173819430906444
+  },
+  {
+    "feature": "depto_SANTA CRUZ",
+    "importance": 0.0030823414845499654
+  },
+  {
+    "feature": "log_n_insumos",
+    "importance": 0.0026896519391815693
+  },
+  {
+    "feature": "depto_COCHABAMBA",
+    "importance": 0.0018696011331759263
+  }
+]
